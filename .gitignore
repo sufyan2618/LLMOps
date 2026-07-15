@@ -5,31 +5,16 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
 .venv/
 venv/
 ENV/
-env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-.tox/
-.nox/
 
 # Environment & secrets
 .env
@@ -38,19 +23,17 @@ htmlcov/
 *.pem
 secrets/
 credentials.json
+infra/k8s/secret.local.yaml
 
 # IDE / OS
 .idea/
 .vscode/
 *.swp
-*.swo
 .DS_Store
-Thumbs.db
 
 # Models (mounted as volumes — do not commit GGUF weights)
 models/**
 !models/.gitkeep
-!models/.cache/.gitkeep
 *.gguf
 *.GGUF
 *.bin
@@ -61,14 +44,14 @@ docker-data/
 *.log
 
 # Eval / CI artifacts
-evaluation/results/
+backend/evaluation/results/
 coverage.xml
 junit.xml
 trivy-report.json
 
 # Helm
 charts/*.tgz
-helm/**/charts/
+infra/helm/**/charts/
 
 # Misc
 *.bak

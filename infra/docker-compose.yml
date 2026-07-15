@@ -1,11 +1,13 @@
 services:
   api:
-    build: .
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     image: llmops-chat:local
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ../.env
     environment:
       MODEL_PATH: /models/qwen3-4b-q4_k_m.gguf
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -14,8 +16,7 @@ services:
       OTEL_ENABLED: "true"
       APP_ENV: local
     volumes:
-      # Host directory with your .gguf file(s) — mount, never bake into image
-      - ./models:/models:ro
+      - ../models:/models:ro
     depends_on:
       - otel-collector
       - loki

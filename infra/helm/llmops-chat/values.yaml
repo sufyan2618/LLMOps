@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/OWNER/llmops-chat
+  repository: sufyanliaqat/llmops-chat
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
@@ -40,7 +40,6 @@ env:
   LANGFUSE_BASE_URL: https://cloud.langfuse.com
 
 secrets:
-  # Create separately or use ExternalSecrets; values rendered only if createSecret=true
   createSecret: false
   langfusePublicKey: ""
   langfuseSecretKey: ""
@@ -48,11 +47,3 @@ secrets:
 serviceMonitor:
   enabled: true
   interval: 15s
-
-argo:
-  appName: llmops-chat
-  namespace: argocd
-  destNamespace: llmops
-  repoURL: https://github.com/OWNER/LlmOps.git
-  targetRevision: main
-  path: helm/llmops-chat

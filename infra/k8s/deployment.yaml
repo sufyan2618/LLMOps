@@ -27,7 +27,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: api
-          image: ghcr.io/OWNER/llmops-chat:0.1.0
+          image: sufyanliaqat/llmops-chat:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
