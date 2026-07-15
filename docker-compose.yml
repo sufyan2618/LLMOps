@@ -1,0 +1,89 @@
+services:
+  api:
+    build: .
+    image: llmops-chat:local
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      MODEL_PATH: /models/qwen3-4b-q4_k_m.gguf
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-true}
+      METRICS_ENABLED: "true"
+      OTEL_ENABLED: "true"
+      APP_ENV: local
+    volumes:
+      # Host directory with your .gguf file(s) — mount, never bake into image
+      - ./models:/models:ro
+    depends_on:
+      - otel-collector
+      - loki
+    networks:
+      - llmops
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - llmops
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - llmops
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+    ports:
+      - "3100:3100"
+    networks:
+      - llmops
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    volumes:
+      - ./observability/promtail/config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    depends_on:
+      - loki
+    networks:
+      - llmops
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - llmops
+
+networks:
+  llmops:
+    driver: bridge

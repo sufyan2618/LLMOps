@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: llmops-chat
+  namespace: llmops
+  labels:
+    app.kubernetes.io/name: llmops-chat
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llmops-chat
+  namespaceSelector:
+    matchNames:
+      - llmops
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

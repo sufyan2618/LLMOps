@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Git / IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# Models — mount at runtime, never bake into image
+models/
+*.gguf
+*.GGUF
+*.bin
+*.safetensors
+
+# Docs / CI artifacts
+*.md
+!app/**/*.md
+evaluation/results/
+coverage.xml
+junit.xml
+trivy-report.json
+docker-data/
+k8s/
+helm/
+.github/
+observability/
+tests/
+*.log
+
+# Misc
+.dockerignore
+Dockerfile*
+docker-compose*.yml

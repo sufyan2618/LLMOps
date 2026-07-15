@@ -1,0 +1,42 @@
+{
+  "title": "LLMOps Chat",
+  "uid": "llmops-chat",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Chat request rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(llm_chat_requests_total[1m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Chat latency (p95)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(llm_chat_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "API logs (Loki)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "{service=\"api\"}",
+          "datasource": { "type": "loki", "uid": "Loki" }
+        }
+      ]
+    }
+  ]
+}

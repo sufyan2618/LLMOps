@@ -1,0 +1,32 @@
+[
+  {
+    "id": "geo-france",
+    "input": "What is the capital of France? Reply with only the city name.",
+    "expected_output": "Paris",
+    "eval_type": "contains"
+  },
+  {
+    "id": "geo-germany",
+    "input": "What is the capital of Germany? Reply with only the city name.",
+    "expected_output": "Berlin",
+    "eval_type": "contains"
+  },
+  {
+    "id": "math-simple",
+    "input": "What is 2 + 2? Reply with only the number.",
+    "expected_output": "4",
+    "eval_type": "contains"
+  },
+  {
+    "id": "greeting",
+    "input": "Say hello in one short sentence.",
+    "expected_output": "hello",
+    "eval_type": "contains"
+  },
+  {
+    "id": "color",
+    "input": "What color is the sky on a clear day? One word.",
+    "expected_output": "blue",
+    "eval_type": "contains"
+  }
+]

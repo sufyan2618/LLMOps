@@ -1,0 +1,58 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/OWNER/llmops-chat
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  host: llmops.example.com
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 6Gi
+
+model:
+  path: /models/qwen3-4b-q4_k_m.gguf
+  pvcName: gguf-models-hostpath
+  mountPath: /models
+
+env:
+  APP_NAME: llmops-chat
+  APP_ENV: production
+  LOG_LEVEL: INFO
+  LAZY_LOAD_MODEL: "true"
+  OTEL_ENABLED: "true"
+  OTEL_SERVICE_NAME: llmops-chat
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
+  METRICS_ENABLED: "true"
+  LANGFUSE_ENABLED: "true"
+  LANGFUSE_BASE_URL: https://cloud.langfuse.com
+
+secrets:
+  # Create separately or use ExternalSecrets; values rendered only if createSecret=true
+  createSecret: false
+  langfusePublicKey: ""
+  langfuseSecretKey: ""
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
+argo:
+  appName: llmops-chat
+  namespace: argocd
+  destNamespace: llmops
+  repoURL: https://github.com/OWNER/LlmOps.git
+  targetRevision: main
+  path: helm/llmops-chat

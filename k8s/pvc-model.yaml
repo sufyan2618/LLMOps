@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gguf-models
+  namespace: llmops
+  labels:
+    app.kubernetes.io/name: llmops-chat
+spec:
+  accessModes:
+    - ReadOnlyMany
+  # Or ReadWriteOnce if using hostPath / local-path provisioner
+  resources:
+    requests:
+      storage: 20Gi
+  # storageClassName: local-path  # uncomment for local clusters
+---
+# Optional: bind a node-local directory that already has the GGUF file
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gguf-models-pv
+  labels:
+    app.kubernetes.io/name: llmops-chat
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /data/models
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gguf-models-hostpath
+  namespace: llmops
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: gguf-models-pv
