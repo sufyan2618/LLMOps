@@ -49,9 +49,11 @@ services:
 
   loki:
     image: grafana/loki:3.2.1
+    user: "0:0"
     command: ["-config.file=/etc/loki/config.yaml"]
     volumes:
       - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
     ports:
       - "3100:3100"
     networks:
@@ -84,6 +86,9 @@ services:
       - loki
     networks:
       - llmops
+
+volumes:
+  loki-data:
 
 networks:
   llmops:
