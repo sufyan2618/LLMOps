@@ -23,7 +23,7 @@ fi
 
 echo "==> Creating kind cluster (idempotent)"
 if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
-  kind create cluster --name "${CLUSTER_NAME}" --config "${ROOT}/kind/cluster.yaml"
+  kind create cluster --name "${CLUSTER_NAME}" --config "${ROOT}/k8s/kind/cluster.yaml"
 else
   echo "Cluster ${CLUSTER_NAME} already exists"
   kubectl cluster-info --context "kind-${CLUSTER_NAME}" >/dev/null
