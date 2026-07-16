@@ -30,17 +30,27 @@ setup_logging(settings.log_level, settings.app_name)
 logger = logging.getLogger(__name__)
 
 llm_service = LLMService(settings)
+_warm_task: asyncio.Task | None = None
+
+
+async def _warm_model() -> None:
+    """Load GGUF once in the background — never from probe handlers."""
+    try:
+        logger.info("Background model warm-up started")
+        await asyncio.to_thread(llm_service.load)
+        logger.info("Background model warm-up finished")
+    except Exception:  # noqa: BLE001
+        logger.exception("Background model warm-up failed")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _warm_task
     init_langfuse(settings)
-    if not settings.lazy_load_model:
-        try:
-            await asyncio.to_thread(llm_service.load)
-        except ModelNotReadyError:
-            logger.warning("Model not ready at startup; /ready will stay unhealthy until loaded")
+    _warm_task = asyncio.create_task(_warm_model())
     yield
+    if _warm_task and not _warm_task.done():
+        _warm_task.cancel()
     flush_langfuse()
 
 
@@ -55,19 +65,18 @@ setup_metrics(app, settings.metrics_enabled)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    # Must stay non-blocking so k8s liveness never times out during /chat inference.
+    # Always cheap — used by k8s liveness.
     return {"status": "ok", "version": settings.app_version}
 
 
 @app.get("/ready")
 async def ready() -> JSONResponse:
+    # Do NOT load the model here — probes were OOMing the 8GB VPS by
+    # re-triggering GGUF load. Warm-up happens in lifespan background task.
     if llm_service.ready:
         return JSONResponse({"status": "ready", "model": settings.model_path})
-    try:
-        await asyncio.to_thread(llm_service.load)
-        return JSONResponse({"status": "ready", "model": settings.model_path})
-    except ModelNotReadyError as exc:
-        return JSONResponse({"status": "not_ready", "detail": str(exc)}, status_code=503)
+    detail = llm_service.load_error or "model still loading"
+    return JSONResponse({"status": "not_ready", "detail": detail}, status_code=503)
 
 
 def _generation_context(langfuse: Any, request: ChatRequest):
@@ -109,8 +118,7 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
                     logger.debug("langfuse update_current_trace skipped", exc_info=True)
 
             try:
-                # Run blocking llama.cpp off the event loop so /health keeps answering
-                # (otherwise k8s liveness kills the pod mid-request → curl empty reply).
+                # Off event loop so /health keeps answering during CPU inference.
                 result = await asyncio.to_thread(
                     llm_service.chat,
                     request.message,

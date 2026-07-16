@@ -26,6 +26,10 @@ class LLMService:
     def ready(self) -> bool:
         return self._llm is not None
 
+    @property
+    def load_error(self) -> str | None:
+        return self._load_error
+
     def load(self) -> None:
         with self._lock:
             if self._llm is not None:
@@ -40,6 +44,7 @@ class LLMService:
                     model_path=self._settings.model_path,
                     n_ctx=self._settings.model_n_ctx,
                     n_threads=self._settings.model_n_threads,
+                    n_batch=256,
                     verbose=False,
                 )
                 logger.info("GGUF model loaded")
@@ -52,12 +57,15 @@ class LLMService:
         if self._llm is None:
             self.load()
 
-    def chat(self, message: str, max_tokens: int = 512) -> dict[str, Any]:
+    def chat(self, message: str, max_tokens: int = 128) -> dict[str, Any]:
         self.ensure_loaded()
         assert self._llm is not None
+        # Qwen3: /no_think skips long chain-of-thought (saves RAM/time on CPU VPS).
+        user_content = message if "/no_think" in message or "/think" in message else f"{message}\n/no_think"
         completion = self._llm.create_chat_completion(
-            messages=[{"role": "user", "content": message}],
+            messages=[{"role": "user", "content": user_content}],
             max_tokens=max_tokens,
+            temperature=0.2,
         )
         content = completion["choices"][0]["message"]["content"]
         usage = completion.get("usage") or {}

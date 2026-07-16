@@ -17,10 +17,10 @@ ingress:
 resources:
   requests:
     cpu: 500m
-    memory: 2Gi
+    memory: 3Gi
   limits:
-    cpu: "2"
-    memory: 6Gi
+    cpu: "3"
+    memory: 5Gi
 
 model:
   path: /models/qwen3-4b-q4_k_m.gguf

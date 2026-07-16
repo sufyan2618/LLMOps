@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_path: str = "/models/qwen3-4b-q4_k_m.gguf"
-    model_n_ctx: int = 2048
+    model_n_ctx: int = 1024
     model_n_threads: int = 4
-    model_max_tokens: int = 128
+    model_max_tokens: int = 64
     lazy_load_model: bool = True
 
     langfuse_public_key: str = ""

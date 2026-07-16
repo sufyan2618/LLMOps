@@ -27,7 +27,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: api
-          image: sufyanliaqat/llmops-chat:0.1.0
+          image: sufyanliaqat/llmops-chat:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -46,26 +46,28 @@ spec:
           resources:
             requests:
               cpu: "500m"
-              memory: "2Gi"
+              memory: "3Gi"
             limits:
-              cpu: "2"
-              memory: "6Gi"
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 20
+              cpu: "3"
+              memory: "5Gi"
+          # Liveness must never call /ready (model load). Health is always cheap.
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
             failureThreshold: 6
+          # Ready only after background warm-up; long threshold so load can finish.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 60
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
