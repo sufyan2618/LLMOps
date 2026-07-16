@@ -31,6 +31,9 @@ env:
   APP_NAME: llmops-chat
   APP_ENV: production
   LOG_LEVEL: INFO
+  MODEL_N_CTX: "2048"
+  MODEL_N_THREADS: "4"
+  MODEL_MAX_TOKENS: "128"
   LAZY_LOAD_MODEL: "true"
   OTEL_ENABLED: "true"
   OTEL_SERVICE_NAME: llmops-chat

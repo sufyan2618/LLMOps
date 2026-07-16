@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager, nullcontext
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
     init_langfuse(settings)
     if not settings.lazy_load_model:
         try:
-            llm_service.load()
+            await asyncio.to_thread(llm_service.load)
         except ModelNotReadyError:
             logger.warning("Model not ready at startup; /ready will stay unhealthy until loaded")
     yield
@@ -54,6 +55,7 @@ setup_metrics(app, settings.metrics_enabled)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    # Must stay non-blocking so k8s liveness never times out during /chat inference.
     return {"status": "ok", "version": settings.app_version}
 
 
@@ -62,7 +64,7 @@ async def ready() -> JSONResponse:
     if llm_service.ready:
         return JSONResponse({"status": "ready", "model": settings.model_path})
     try:
-        llm_service.load()
+        await asyncio.to_thread(llm_service.load)
         return JSONResponse({"status": "ready", "model": settings.model_path})
     except ModelNotReadyError as exc:
         return JSONResponse({"status": "not_ready", "detail": str(exc)}, status_code=503)
@@ -107,7 +109,13 @@ async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
                     logger.debug("langfuse update_current_trace skipped", exc_info=True)
 
             try:
-                result = llm_service.chat(request.message)
+                # Run blocking llama.cpp off the event loop so /health keeps answering
+                # (otherwise k8s liveness kills the pod mid-request → curl empty reply).
+                result = await asyncio.to_thread(
+                    llm_service.chat,
+                    request.message,
+                    settings.model_max_tokens,
+                )
                 latency_ms = (time.perf_counter() - started) * 1000
 
                 CHAT_REQUESTS.labels(status="ok").inc()
