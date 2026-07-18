@@ -97,7 +97,7 @@ data:
       }
     }
 ---
-aapiVersion: apps/v1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: alloy
@@ -115,21 +115,18 @@ spec:
     spec:
       serviceAccountName: alloy
 
-      # <-- Add this
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 473
-        runAsGroup: 473
         fsGroup: 473
 
       containers:
         - name: alloy
           image: grafana/alloy:v1.8.3
+          imagePullPolicy: IfNotPresent
 
           args:
             - run
             - /etc/alloy/config.alloy
-            - --storage.path=/var/lib/alloy/data
+            - --storage.path=/var/lib/alloy
 
           env:
             - name: HOSTNAME
@@ -141,14 +138,6 @@ spec:
             - name: http
               containerPort: 12345
 
-          volumeMounts:
-            - name: config
-              mountPath: /etc/alloy
-              readOnly: true
-
-            - name: data
-              mountPath: /var/lib/alloy/data
-
           resources:
             requests:
               cpu: 50m
@@ -159,9 +148,18 @@ spec:
 
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
             capabilities:
               drop:
                 - ALL
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+
+            - name: data
+              mountPath: /var/lib/alloy
 
       volumes:
         - name: config
