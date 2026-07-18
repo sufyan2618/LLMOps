@@ -235,27 +235,46 @@ docker push sufyanliaqat/llmops-chat:latest
 
 ```bash
 sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 sudo ufw allow 30080/tcp
 sudo ufw enable
 sudo ufw status
 ```
 
-## C7. Deploy (kind + Prometheus + Loki + OTel + API)
+Also allow inbound TCP `80` in the VPS provider firewall (DigitalOcean
+Networking → Firewalls). Port `30080` is optional after ingress is working.
+
+## C7. Deploy (kind + API + full observability)
 
 ```bash
 chmod +x infra/scripts/deploy-kind.sh infra/scripts/smoke_test.sh
+
+# PUBLIC_IP is optional; the script detects it automatically.
+# Set GRAFANA_ADMIN_PASSWORD to choose your own password.
+PUBLIC_IP=YOUR_VPS_IP \
+GRAFANA_ADMIN_PASSWORD='use-a-long-random-password' \
 ./infra/scripts/deploy-kind.sh
 ```
 
-This creates the kind cluster, loads the image, applies observability + app manifests, mounts `/data/models`.
+The script:
+
+1. Creates/reuses the kind cluster and loads the Docker image.
+2. Deploys Prometheus, Loki, OTel Collector, Grafana, and Grafana Alloy.
+3. Provisions Grafana's Prometheus/Loki datasources and LLMOps dashboard.
+4. Installs ingress-nginx and creates public `nip.io` hostnames.
+5. Mounts the GGUF from `/data/models` and deploys the API.
+6. Prints the Grafana username/password and final URLs.
 
 ## C8. Verify
 
 ```bash
 kubectl get pods -A
-curl http://127.0.0.1:30080/health
+kubectl get ingress -A
 
-curl -X POST http://127.0.0.1:30080/chat \
+curl http://api.YOUR_VPS_IP.nip.io/health
+
+curl -X POST http://api.YOUR_VPS_IP.nip.io/chat \
   -H "Content-Type: application/json" \
   -d '{"message":"Say hi in one word."}'
 ```
@@ -263,29 +282,40 @@ curl -X POST http://127.0.0.1:30080/chat \
 From your laptop:
 
 ```bash
-curl http://YOUR_VPS_IP:30080/health
+curl http://api.YOUR_VPS_IP.nip.io/health
 ```
 
 Set GitHub secret:
 
 ```text
-PREVIEW_URL = http://YOUR_VPS_IP:30080
+PREVIEW_URL = http://api.YOUR_VPS_IP.nip.io
 ```
 
-## C9. Observability UIs (on VPS or via SSH tunnel)
+## C9. Grafana dashboard (no port-forward)
+
+Open:
+
+```text
+http://grafana.YOUR_VPS_IP.nip.io
+```
+
+The deploy script prints the generated credentials. To retrieve them later:
 
 ```bash
-kubectl -n observability port-forward svc/prometheus 9090:9090
-kubectl -n observability port-forward svc/loki 3100:3100
+echo "user: $(kubectl -n observability get secret grafana-admin \
+  -o jsonpath='{.data.admin-user}' | base64 -d)"
+echo "password: $(kubectl -n observability get secret grafana-admin \
+  -o jsonpath='{.data.admin-password}' | base64 -d)"
 ```
 
-From laptop:
+Grafana is preconfigured with:
 
-```bash
-ssh -L 30080:127.0.0.1:30080 -L 9090:127.0.0.1:9090 USER@YOUR_VPS_IP
-```
+- **Prometheus**: request totals/rate and p95 chat latency
+- **Loki**: Kubernetes pod logs collected by Grafana Alloy
+- **LLMOps Chat** dashboard under the `LLMOps` folder
 
-Then open http://127.0.0.1:30080/health and http://127.0.0.1:9090
+Prometheus/Loki remain internal `ClusterIP` services; Grafana queries them
+inside Kubernetes, so they do not need public ingress.
 
 ## C10. Redeploy after a new image
 
@@ -317,7 +347,9 @@ VPS
 - [ ] Model at `/data/models/qwen3-4b-q4_k_m.gguf`
 - [ ] `secret.local.yaml` with Langfuse keys
 - [ ] `./infra/scripts/deploy-kind.sh`
-- [ ] Port 30080 open
+- [ ] TCP 80 allowed by UFW and the VPS provider firewall
+- [ ] `api.<VPS_IP>.nip.io/health` works
+- [ ] `grafana.<VPS_IP>.nip.io` opens the provisioned dashboard
 - [ ] `PREVIEW_URL` set so CI smoke/eval can run
 
 ---
@@ -329,6 +361,9 @@ kubectl -n llmops get pods,svc
 kubectl -n llmops logs -l app.kubernetes.io/name=llmops-chat -f
 kubectl -n llmops describe pod -l app.kubernetes.io/name=llmops-chat
 kubectl -n observability get pods
+kubectl -n observability logs daemonset/alloy
+kubectl -n observability logs deployment/grafana
+kubectl get ingress -A
 
 # model visible inside kind node?
 docker exec llmops-control-plane ls -lh /data/models

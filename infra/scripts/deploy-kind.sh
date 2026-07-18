@@ -7,11 +7,18 @@ CLUSTER_NAME="${CLUSTER_NAME:-llmops}"
 IMAGE="${IMAGE:-sufyanliaqat/llmops-chat:latest}"
 MODEL_HOST_DIR="${MODEL_HOST_DIR:-/data/models}"
 MODEL_FILE="${MODEL_FILE:-qwen3-4b-q4_k_m.gguf}"
+PUBLIC_IP="${PUBLIC_IP:-}"
+INGRESS_NGINX_MANIFEST="https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1"; exit 1; }; }
 need docker
 need kind
 need kubectl
+need curl
+
+if [[ -z "${PUBLIC_IP}" ]]; then
+  PUBLIC_IP="$(curl -fsS https://api.ipify.org)"
+fi
 
 echo "==> Ensuring model directory exists: ${MODEL_HOST_DIR}"
 sudo mkdir -p "${MODEL_HOST_DIR}"
@@ -37,6 +44,22 @@ echo "==> Applying namespaces + observability (OTel, Loki, Prometheus)"
 kubectl apply -f "${ROOT}/k8s/namespace.yaml"
 kubectl apply -f "${ROOT}/k8s/observability.yaml"
 
+echo "==> Creating/reusing Grafana admin credentials"
+if kubectl -n observability get secret grafana-admin >/dev/null 2>&1; then
+  GRAFANA_ADMIN_USER="$(kubectl -n observability get secret grafana-admin -o jsonpath='{.data.admin-user}' | base64 -d)"
+  GRAFANA_ADMIN_PASSWORD="$(kubectl -n observability get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d)"
+else
+  GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"
+  GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-$(tr -d '-' < /proc/sys/kernel/random/uuid)}"
+  kubectl -n observability create secret generic grafana-admin \
+    --from-literal=admin-user="${GRAFANA_ADMIN_USER}" \
+    --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}"
+fi
+
+echo "==> Deploying Grafana dashboards and Alloy pod-log collection"
+kubectl apply -f "${ROOT}/k8s/grafana.yaml"
+kubectl apply -f "${ROOT}/k8s/alloy.yaml"
+
 echo "==> Applying model PVC + app config"
 kubectl apply -f "${ROOT}/k8s/pvc-model.yaml"
 kubectl apply -f "${ROOT}/k8s/configmap.yaml"
@@ -56,8 +79,19 @@ kubectl -n llmops set image deployment/llmops-chat api="${IMAGE}"
 kubectl apply -f "${ROOT}/k8s/service.yaml"
 kubectl apply -f "${ROOT}/k8s/nodeport.yaml" || true
 
+echo "==> Installing ingress-nginx for kind"
+kubectl apply -f "${INGRESS_NGINX_MANIFEST}"
+kubectl -n ingress-nginx wait \
+  --for=condition=Ready pod \
+  -l app.kubernetes.io/component=controller \
+  --timeout=300s
+
+echo "==> Applying API and Grafana ingress routes"
+sed "s/__PUBLIC_IP__/${PUBLIC_IP}/g" "${ROOT}/k8s/ingress.yaml" | kubectl apply -f -
+
 echo "==> Waiting for observability pods"
 kubectl -n observability wait --for=condition=available deployment --all --timeout=300s || true
+kubectl -n observability rollout status daemonset/alloy --timeout=300s || true
 
 echo "==> Waiting for llmops-chat (model load can take a while)"
 kubectl -n llmops rollout status deployment/llmops-chat --timeout=600s || {
@@ -68,12 +102,14 @@ kubectl -n llmops rollout status deployment/llmops-chat --timeout=600s || {
 
 echo ""
 echo "Deployed."
-echo "  Health:  curl http://127.0.0.1:30080/health"
-echo "  Chat:    curl -X POST http://127.0.0.1:30080/chat -H 'Content-Type: application/json' -d '{\"message\":\"hi\"}'"
+echo "  API:      http://api.${PUBLIC_IP}.nip.io"
+echo "  Grafana:  http://grafana.${PUBLIC_IP}.nip.io"
+echo "  Grafana user: ${GRAFANA_ADMIN_USER}"
+echo "  Grafana password: ${GRAFANA_ADMIN_PASSWORD}"
+echo "  Health:  curl http://api.${PUBLIC_IP}.nip.io/health"
+echo "  Chat:    curl -X POST http://api.${PUBLIC_IP}.nip.io/chat -H 'Content-Type: application/json' -d '{\"message\":\"hi\"}'"
 echo "  Metrics: curl http://127.0.0.1:30080/metrics | head"
-echo "  Prometheus: kubectl -n observability port-forward svc/prometheus 9090:9090"
-echo "  Loki:       kubectl -n observability port-forward svc/loki 3100:3100"
-echo "  OTel:       kubectl -n observability get svc otel-collector"
+echo "  Prometheus/Loki: available as Grafana datasources"
+echo "  OTel: kubectl -n observability get svc otel-collector"
 echo ""
-echo "From your laptop (SSH tunnel):"
-echo "  ssh -L 30080:127.0.0.1:30080 -L 9090:127.0.0.1:9090 user@VPS_IP"
+echo "Ensure VPS firewall/security-group allows TCP 80 (and 443 when TLS is added)."
