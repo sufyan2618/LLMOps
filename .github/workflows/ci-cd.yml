@@ -142,24 +142,43 @@ jobs:
         if: github.event_name != 'pull_request'
         run: docker pull "${IMAGE_REPOSITORY}:${{ needs.docker-build.outputs.tag }}"
 
+      # ignore-unfixed: base-image CVEs without an upstream fix should not
+      # block the pipeline; they reappear in reports once a fix exists.
       - name: Trivy FS scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: "1"
           format: table
 
-      - name: Trivy image scan
+      # Report-only image scan: produces SARIF with all findings for code scanning.
+      - name: Trivy image scan (SARIF report)
         if: github.event_name != 'pull_request'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.IMAGE_REPOSITORY }}:${{ needs.docker-build.outputs.tag }}
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          exit-code: "0"
           format: sarif
           output: trivy-report.sarif
+
+      # Gate only on vulnerabilities that actually have a fix available.
+      - name: Trivy image scan (fail on fixable CRITICAL/HIGH)
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_REPOSITORY }}:${{ needs.docker-build.outputs.tag }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          skip-setup-trivy: true
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       - name: Upload Trivy SARIF
         if: ${{ !cancelled() && github.event_name != 'pull_request' && hashFiles('trivy-report.sarif') != '' }}
