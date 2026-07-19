@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: sufyanliaqat/llmops-chat
-  tag: "0.1.0"
+  tag: "85cec17"
   pullPolicy: IfNotPresent
 
 service:
